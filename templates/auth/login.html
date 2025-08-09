@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Sign in{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto mt-12">
+  <div class="bg-white border rounded-2xl shadow-sm p-6 sm:p-8" x-data="{ show:false, loading:false }">
+    <h1 class="text-2xl font-semibold text-slate-900">Sign in</h1>
+    <p class="text-sm text-slate-500 mt-1">Use your admin credentials to continue.</p>
+
+    {% if form.non_field_errors %}
+      <div class="mt-4 rounded-md border border-red-200 bg-red-50 text-red-700 text-sm p-3">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    <form method="post" class="mt-6 space-y-4" @submit="loading=true">
+      {% csrf_token %}
+
+      <div>
+        <label for="id_username" class="block text-sm font-medium text-slate-700">Username</label>
+        {{ form.username }}
+        {% if form.username.errors %}
+          <p class="mt-1 text-sm text-red-600">{{ form.username.errors.0 }}</p>
+        {% endif %}
+      </div>
+
+      <div>
+        <label for="id_password" class="block text-sm font-medium text-slate-700">Password</label>
+        <div class="relative mt-1">
+          {{ form.password }}
+          <button type="button" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-slate-700" @click="show=!show" aria-label="Toggle password">
+            <span x-text="show ? 'Hide' : 'Show'"></span>
+          </button>
+        </div>
+        {% if form.password.errors %}
+          <p class="mt-1 text-sm text-red-600">{{ form.password.errors.0 }}</p>
+        {% endif %}
+      </div>
+
+      {% if form.remember_me is not None %}
+      <div class="flex items-center justify-between">
+        <label class="inline-flex items-center space-x-2 text-sm text-slate-600">
+          {{ form.remember_me }}
+          <span>Remember me</span>
+        </label>
+        <a href="/admin/password_reset/" class="text-sm text-blue-600 hover:text-blue-700">Forgot password?</a>
+      </div>
+      {% endif %}
+
+      <button type="submit" x-bind:disabled="loading" class="w-full inline-flex items-center justify-center h-11 rounded-lg bg-blue-600 text-white font-medium shadow-sm hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 disabled:opacity-60">
+        <svg x-show="loading" class="-ml-1 mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+        </svg>
+        <span>Sign in</span>
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

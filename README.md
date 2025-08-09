@@ -1,26 +1,29 @@
 # Claims Management System
 
-A lightweight web application that mimics how we analyze insurance claims at ERISA Recovery, built with robustness features and burger-themed enhancements.
+A modern, responsive claims management system built with Django, HTMX, and Alpine.js.
 
-## 🍔 Features
+## 🚀 Features
 
-- **Claims Management**: View, search, and filter insurance claims
-- **HTMX Integration**: Dynamic content loading without page refreshes
-- **Alpine.js**: Lightweight JavaScript framework for interactivity
-- **Robustness Features**: Enhanced error handling and user experience
-- **Admin Dashboard**: Statistics and overview of claims data
-- **Flag & Annotate**: Mark claims for review and add custom notes
-- **Search & Filter**: Advanced search functionality for claims
-- **Responsive Design**: Modern UI with Tailwind CSS
+### Core Features
+- **Claims List View** - Display all claims with ID, patient name, billed amount, paid amount, status, and insurer name
+- **HTMX Detail View** - Show claim-specific information (CPT codes, denial reasons, notes) without full page reload
+- **Flag & Annotate** - Allow users to flag claims for review and add custom notes stored in your database
+- **Search & Filter** - Implement search functionality for claim status or insurer name
+- **User Authentication** - Simple login system with user-specific annotations
 
-## 🚀 Quick Start
+### Bonus Features
+- **Admin Dashboard** - Stats like total flagged claims, average underpayment
+- **CSV Re-upload** - Support for data overwrite or append logic
+- **Modern UI** - Clean, responsive design with real-time updates
 
-### Prerequisites
+## 🛠️ Technology Stack
 
-- Python 3.8+
-- pip (Python package installer)
+- **Backend**: Python with Django v4+
+- **Database**: SQLite (lightweight, no setup required)
+- **Frontend**: HTML/CSS with HTMX and Alpine.js
+- **Styling**: Tailwind CSS framework
 
-### Installation
+## 📦 Installation
 
 1. **Clone the repository**
    ```bash
@@ -28,165 +31,143 @@ A lightweight web application that mimics how we analyze insurance claims at ERI
    cd claims-management-system
    ```
 
-2. **Create a virtual environment**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
+2. **Install dependencies**
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **Initialize the database**
+3. **Bootstrap (one command)**
    ```bash
-   flask init-db
+   python bootstrap.py               # migrate, import CSV, start server (quiet)
+   # clean start
+   python bootstrap.py --clear       # clears DB and re-imports your CSVs
+   # append-only reupload (skip updates)
+   python bootstrap.py --append
+   # disable auto-reloader (avoid double-run)
+   python bootstrap.py --noreload
    ```
 
-5. **Load sample data**
-   ```bash
-   flask load-sample-data
-   ```
+4. **Open your browser**  
+   Go to: http://127.0.0.1:8000/
 
-6. **Run the application**
-   ```bash
-   python run.py
-   ```
+## 🎯 Usage
 
-7. **Access the application**
-   Open your browser and navigate to `http://localhost:5000`
+### Default Admin Account
+The loader ensures a working admin on each run:
+- **Username**: `admin`
+- **Password**: `admin123`
 
-## 🏗️ Project Structure
+### Key Features
 
-```
-claims-management-system/
-├── app/
-│   ├── __init__.py          # Flask application factory
-│   ├── models.py            # Database models
-│   ├── views.py             # Route handlers
-│   ├── static/
-│   │   ├── css/
-│   │   │   └── style.css    # Custom styles
-│   │   └── js/
-│   │       └── app.js       # Custom JavaScript
-│   └── templates/
-│       ├── base.html        # Base template
-│       ├── index.html       # Claims list view
-│       ├── claim_detail.html # Claim detail view
-│       └── admin_dashboard.html # Admin dashboard
-├── data/                    # Data files
-├── requirements.txt         # Python dependencies
-├── run.py                  # Application entry point
-└── README.md              # This file
-```
-
-## 🎯 Core Features
-
-### Claims List View
-- Display all claims with ID, patient name, billed amount, paid amount, status, and insurer name
-- Search functionality for claim status or insurer name
-- Pagination for large datasets
-- Responsive table design
-
-### HTMX Detail View
-- Show claim-specific information (CPT codes, denial reasons, notes) without full page reload
-- Dynamic content loading
-- Modal-based detail views
-
-### Flag & Annotate
-- Allow users to flag claims for review
-- Add custom notes stored in database
-- User-specific annotations
-- Timestamp tracking
-
-### Search & Filter
-- Search by patient name, claim ID, or insurer
+#### Claims List
+- View all claims in a clean, sortable table
+- Search claims by patient name, claim ID, or insurer
 - Filter by status or insurer
-- Real-time search results
-- Advanced filtering options
+- Click on any claim to view details
 
-### Admin Dashboard
-- Statistics like total flagged claims, average underpayment
-- Recent activity feed
-- Quick action buttons
-- Data export functionality
+#### Claim Details
+- View comprehensive claim information
+- See CPT codes and denial reasons
+- View user-specific notes and flags
+- Add new notes or flag claims for review
 
-## 🍔 Burger-Themed Enhancements
+#### User Authentication
+- Register new accounts
+- Login with existing credentials
+- User-specific annotations and flags
+- Profile management
 
-This application includes special burger-themed features for enhanced robustness:
+#### KPIs (on Claims page)
+- Live counts for total claims, flagged claims, total billed, and underpayment
+- Realtime updates via SSE when flags are added/removed
 
-- Burger-themed color scheme
-- Console messages with burger emojis
-- Enhanced error handling
-- Robust data validation
-- User-friendly notifications
+## 🔧 Management Commands
 
-## 🔧 Configuration
+### Load Sample Data
+```bash
+# Import CSVs (also ensures default admin exists)
+python manage.py load_sample_data
 
-### Environment Variables
-
-Create a `.env` file in the root directory:
-
-```env
-SECRET_KEY=your-secret-key-here
-FLASK_ENV=development
-DATABASE_URL=sqlite:///claims_burger.db
+# Clear existing data and reload
+python manage.py load_sample_data --clear
 ```
 
-### Database Configuration
+### Export Data
+```bash
+# Export claims as JSON (also available in UI)
+python manage.py shell -c "from claims.views import export_claims_json; print('Use the export button in the UI')"
 
-The application uses SQLite by default for simplicity. For production, you can configure other databases by modifying the `SQLALCHEMY_DATABASE_URI` in `app/__init__.py`.
+# Export claims as CSV
+python manage.py shell -c "from claims.views import export_claims_csv; print('Use the export button in the UI')"
+```
+
+## 🎨 UI Features
+
+### Modern Design
+- Clean, professional interface
+- Responsive design for all devices
+- Real-time updates with HTMX
+- Interactive components with Alpine.js
+
+### User Experience
+- Intuitive navigation
+- Quick actions for common tasks
+- Modal dialogs for forms
+- Success/error notifications
+
+## 🔒 Security
+
+- User authentication and authorization
+- CSRF protection
+- Secure form handling
+- User-specific data isolation
+
+## 📊 Data Management
+
+### Supported Formats
+- CSV import/export
+- JSON export
+- Database backup/restore
+
+### Data Validation
+- Input validation and sanitization
+- Error handling and user feedback
+- Data integrity checks
 
 ## 🚀 Deployment
 
-### Development
+### Production Setup
+1. Set `DEBUG = False` in settings
+2. Configure your database (PostgreSQL recommended)
+3. Set up static file serving
+4. Configure your web server (nginx + gunicorn)
+
+### Environment Variables
 ```bash
-python run.py
+export SECRET_KEY='your-secret-key'
+export DEBUG=False
+export ALLOWED_HOSTS='your-domain.com'
 ```
-
-### Production
-```bash
-export FLASK_ENV=production
-gunicorn -w 4 -b 0.0.0.0:5000 run:app
-```
-
-## 📊 API Endpoints
-
-- `GET /` - Main claims list view
-- `GET /claim/<claim_id>` - Claim detail view
-- `GET /claim/<claim_id>/details` - HTMX partial for claim details
-- `POST /claim/<claim_id>/flag` - Flag a claim for review
-- `POST /claim/<claim_id>/note` - Add a note to a claim
-- `GET /admin/dashboard` - Admin dashboard
-- `GET /api/claims` - API endpoint for claims data
-
-## 🧪 Testing
-
-Run the application and test the following features:
-
-1. **Claims List**: View all claims with search and filter
-2. **Claim Details**: Click "View" to see detailed information
-3. **Flag Claims**: Use "Review me!" button for denied claims
-4. **Add Notes**: Add annotations to claims
-5. **Admin Dashboard**: View statistics and recent activity
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
 
-## 📝 License
+## 📄 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🍔 Burger Mode
+## 🆘 Support
 
-This application includes special burger-themed features for enhanced robustness and user experience. Look for burger-related console messages and enjoy the enhanced functionality!
+For support and questions:
+1. Check the documentation
+2. Search existing issues
+3. Create a new issue with details
 
 ---
 
-**Built with ❤️ and 🍔 for robust claims management**
+Built with Django, HTMX, and Alpine.js.

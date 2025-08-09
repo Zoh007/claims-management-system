@@ -1,0 +1,45 @@
+<div class="bg-white border rounded-xl overflow-hidden shadow-sm">
+  <div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead class="bg-slate-50 text-slate-600">
+        <tr>
+          <th class="px-6 py-3 text-left font-medium">Claim</th>
+          <th class="px-6 py-3 text-left font-medium">Patient</th>
+          <th class="px-6 py-3 text-left font-medium mobile-hidden">Insurer</th>
+          <th class="px-6 py-3 text-left font-medium">Status</th>
+          <th class="px-6 py-3 text-right font-medium">Billed</th>
+          <th class="px-6 py-3 text-right font-medium">Paid</th>
+          <th class="px-6 py-3"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for claim in claims %}
+        <tr class="hover:bg-slate-50">
+          <td class="px-6 py-3 font-medium text-gray-900">{{ claim.claim_id }}</td>
+          <td class="px-6 py-3 text-gray-800">{{ claim.patient_name }}</td>
+          <td class="px-6 py-3 text-gray-600 mobile-hidden">{{ claim.insurer_name }}</td>
+          <td class="px-6 py-3">
+            <span class="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full 
+              {% if claim.status == 'Paid' %}bg-green-100 text-green-800{% elif claim.status == 'Denied' %}bg-red-100 text-red-800{% elif claim.status == 'Under Review' %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+              {{ claim.status }}
+            </span>
+          </td>
+          <td class="px-6 py-3 text-right text-slate-800">${{ claim.billed_amount }}</td>
+          <td class="px-6 py-3 text-right text-slate-800">${{ claim.paid_amount }}</td>
+          <td class="px-6 py-3 text-right">
+            <a href="{% url 'claims:claim_detail' claim.claim_id %}" class="text-blue-600 hover:text-blue-800 font-medium">View</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="px-6 py-10 text-center">
+            <div class="text-gray-500">No claims found. Try adjusting the filters.</div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  </div>
+
+

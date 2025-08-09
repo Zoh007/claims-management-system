@@ -1,0 +1,10 @@
+<div class="px-4 py-3" id="flag-{{ flag.id }}">
+  <div class="flex justify-between items-start">
+    <div class="flex-1">
+      <p class="text-sm font-medium text-gray-900">{{ flag.reason }}</p>
+      <p class="text-xs text-gray-500">Claim {{ flag.claim.claim_id }} — {{ flag.claim.patient_name }}</p>
+      <p class="text-[11px] text-gray-400 mt-1">{{ flag.user_id }} • {{ flag.created_at|date:"M d, Y h:i A" }}</p>
+    </div>
+    <button onclick="removeFlag({{ flag.id }})" class="text-red-600 hover:text-red-800 text-sm">Remove</button>
+  </div>
+</div>

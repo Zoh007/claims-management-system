@@ -1,0 +1,248 @@
+<!-- Claim Details Section -->
+<div id="claim-details" class="space-y-6">
+    <!-- Claim Details Card -->
+    <div class="bg-white shadow-sm overflow-hidden sm:rounded-xl">
+        <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
+            <div>
+                <h3 class="text-lg leading-6 font-semibold text-slate-900">Claim Details - {{ claim.claim_id }}</h3>
+                <p class="mt-1 max-w-2xl text-sm text-slate-500">Patient: {{ claim.patient_name }}</p>
+            </div>
+            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full 
+                {% if claim.status == 'Paid' %}bg-green-100 text-green-800
+                {% elif claim.status == 'Denied' %}bg-red-100 text-red-800
+                {% elif claim.status == 'Under Review' %}bg-blue-100 text-blue-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ claim.status }}
+            </span>
+        </div>
+        <div class="border-t border-slate-200">
+            <dl>
+                <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500">Patient</dt>
+                    <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ claim.patient_name }}</dd>
+                </div>
+                <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500">Billed Amount</dt>
+                    <dd class="mt-1 text-sm font-bold text-gray-900 sm:mt-0 sm:col-span-2">${{ claim.billed_amount|floatformat:2 }}</dd>
+                </div>
+                <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500">Discharge Date</dt>
+                    <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ claim.discharge_date|date:"m/d/Y" }}</dd>
+                </div>
+                <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500">Paid Amount</dt>
+                    <dd class="mt-1 text-sm font-bold {% if claim.paid_amount > 0 %}text-green-600{% else %}text-red-600{% endif %} sm:mt-0 sm:col-span-2">${{ claim.paid_amount|floatformat:2 }}</dd>
+                </div>
+                {% if claim.details.first %}
+                <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500">CPT Codes</dt>
+                    <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                        {% if cpt_codes_list %}
+                            {% for code in cpt_codes_list|slice:":3" %}
+                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 mr-1">{{ code }}</span>
+                            {% endfor %}
+                        {% else %}
+                            <span class="text-gray-400">No CPT codes available</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                {% endif %}
+                <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500">Insurer</dt>
+                    <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ claim.insurer_name }}</dd>
+                </div>
+                {% if claim.details.first and claim.details.first.denial_reason %}
+                <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500">Denial Reason</dt>
+                    <dd class="mt-1 text-sm text-red-600 sm:mt-0 sm:col-span-2">{{ claim.details.first.denial_reason }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+    </div>
+
+    <!-- Notes & Annotations Section -->
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+        <div class="px-4 py-5 sm:px-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Notes & Annotations</h3>
+        </div>
+        <div class="border-t border-gray-200">
+            <div class="px-4 py-4 space-y-4">
+                <!-- Flags list -->
+                <div id="flags-container" class="space-y-4">
+                    {% for flag in claim.flags.all|slice:":5" %}
+                    <div class="border-l-4 border-red-400 pl-4">
+                        <p class="text-sm text-gray-900"><strong>Flag:</strong> {{ flag.reason }}</p>
+                        <p class="text-xs text-gray-500 mt-1">Flagged by {{ flag.user.username }} {{ flag.created_at|timesince }} ago</p>
+                    </div>
+                    {% empty %}
+                    <div class="text-sm text-gray-500">No flags for this claim</div>
+                    {% endfor %}
+                </div>
+
+                <!-- Notes list -->
+                <div id="notes-container" class="space-y-4">
+                    {% for note in claim.notes.all|slice:":5" %}
+                    <div class="border-l-4 border-blue-400 pl-4">
+                        <p class="text-sm text-gray-900">{{ note.content }}</p>
+                        <p class="text-xs text-gray-500 mt-1">Added by {{ note.user.username }} {{ note.created_at|timesince }} ago</p>
+                    </div>
+                    {% empty %}
+                    <div class="text-sm text-gray-500">No notes for this claim</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions Section -->
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+        <div class="px-4 py-5 sm:px-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Quick Actions</h3>
+        </div>
+        <div class="border-t border-gray-200">
+            <div class="px-4 py-4 space-y-3">
+                <button 
+                    type="button" 
+                    class="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                    onclick="openFlagModal('{{ claim.claim_id }}')"
+                >
+                    <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path>
+                    </svg>
+                    Flag for Review
+                </button>
+                
+                <button 
+                    type="button" 
+                    class="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    onclick="openNoteModal('{{ claim.claim_id }}')"
+                >
+                    <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Add Note
+                </button>
+                
+                <button 
+                    type="button" 
+                    class="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                    <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Generate Report
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Flag Modal -->
+<div id="flagModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">🚩 Flag Claim for Review</h3>
+            <form id="flagForm" hx-post="{% url 'claims:flag_claim' claim.claim_id %}" hx-target="#flags-container" hx-swap="beforeend">
+                {% csrf_token %}
+                <div class="mb-4">
+                    <label for="flagReason" class="block text-sm font-medium text-gray-700">Reason for Flagging</label>
+                    <textarea 
+                        id="flagReason" 
+                        name="reason" 
+                        rows="3" 
+                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="Enter reason for flagging this claim..."
+                        required
+                    ></textarea>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button 
+                        type="button" 
+                        onclick="closeFlagModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        type="submit" 
+                        class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
+                    >
+                        Flag Claim
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Note Modal -->
+<div id="noteModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">📝 Add Note to Claim</h3>
+            <form id="noteForm" hx-post="{% url 'claims:add_note' claim.claim_id %}" hx-target="#notes-container" hx-swap="beforeend">
+                {% csrf_token %}
+                <div class="mb-4">
+                    <label for="noteContent" class="block text-sm font-medium text-gray-700">Note Content</label>
+                    <textarea 
+                        id="noteContent" 
+                        name="content" 
+                        rows="3" 
+                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="Enter your note about this claim..."
+                        required
+                    ></textarea>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button 
+                        type="button" 
+                        onclick="closeNoteModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        type="submit" 
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                    >
+                        Add Note
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openFlagModal(claimId) {
+    document.getElementById('flagModal').classList.remove('hidden');
+}
+
+function closeFlagModal() {
+    document.getElementById('flagModal').classList.add('hidden');
+    document.getElementById('flagForm').reset();
+}
+
+function openNoteModal(claimId) {
+    document.getElementById('noteModal').classList.remove('hidden');
+}
+
+function closeNoteModal() {
+    document.getElementById('noteModal').classList.add('hidden');
+    document.getElementById('noteForm').reset();
+}
+
+// Close modals when clicking outside
+window.onclick = function(event) {
+    const flagModal = document.getElementById('flagModal');
+    const noteModal = document.getElementById('noteModal');
+    
+    if (event.target === flagModal) {
+        closeFlagModal();
+    }
+    if (event.target === noteModal) {
+        closeNoteModal();
+    }
+}
+</script>

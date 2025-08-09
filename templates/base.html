@@ -1,0 +1,100 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Medical Claims Management System{% endblock %}</title>
+    
+    <!-- HTMX for dynamic updates -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <!-- Alpine.js for reactive components -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="min-h-screen bg-[#F7F9FC] text-slate-800" x-data="{ route: '{{ request.path }}' }">
+    <!-- Toasts -->
+    <div x-data="toastStore()" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+    <!-- Navigation -->
+    <nav class="bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-14">
+                <div class="flex items-center">
+                    <span class="inline-flex items-center text-blue-700 font-semibold tracking-tight">
+                        <span class="text-lg">MedClaims</span>
+                    </span>
+                </div>
+                <div class="flex items-center space-x-1 text-sm">
+                    <a href="{% url 'claims:index' %}" :class="route==='/' ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100' : 'text-gray-700 hover:text-blue-700'" class="px-3 py-1 rounded-lg transition">Claims</a>
+                    {% if request.user.is_authenticated %}
+                      <a href="{% url 'claims:user_logout' %}" class="px-3 py-1 rounded-lg text-gray-700 hover:text-blue-700 transition">Logout</a>
+                    {% else %}
+                      <a href="{% url 'claims:user_login' %}" class="px-3 py-1 rounded-lg text-gray-700 hover:text-blue-700 transition">Login</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto py-8 sm:px-6 lg:px-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer (intentionally minimal) -->
+    <footer class="py-6"></footer>
+
+    <!-- Custom JavaScript (none; using HTMX + Alpine.js per tech stack) -->
+    <script>
+    function toastStore(){
+      return {
+        init(){
+          window.addEventListener('toast', (e)=>{
+            this.show(e.detail?.title || 'Success', e.detail?.message || '')
+          })
+        },
+        show(title, message){
+          const el = document.createElement('div')
+          el.className = 'w-80 bg-white border border-gray-200 rounded-lg shadow p-4 translate-x-full transition transform'
+          el.innerHTML = `<div class="flex items-start"><div class="mt-1 mr-3 text-yellow-600">🚩</div><div class="flex-1"><p class="text-sm font-medium text-gray-900">${title}</p><p class="text-sm text-gray-500">${message}</p></div><button class="ml-3 text-gray-400 hover:text-gray-600" aria-label="Close">✕</button></div>`
+          this.$root.appendChild(el)
+          requestAnimationFrame(()=>{ el.classList.remove('translate-x-full') })
+          const remove=()=>{ el.classList.add('translate-x-full'); setTimeout(()=> el.remove(), 250) }
+          el.querySelector('button').addEventListener('click', remove)
+          setTimeout(remove, 4000)
+        }
+      }
+    }
+    // Lightweight KPIs live update (used on claims index)
+    function kpis(){
+      return {
+        stats: { total_claims: Number('{{ stats.total_claims|default_if_none:0 }}' || 0), flagged_claims: Number('{{ stats.flagged_claims|default_if_none:0 }}' || 0), total_billed: Number('{{ stats.total_billed|default_if_none:0 }}' || 0), average_underpayment: Number('{{ stats.average_underpayment|default_if_none:0 }}' || 0) },
+        init(){
+          try{
+            const es = new EventSource('{% url "claims:events" %}');
+            es.onmessage = (e)=>{
+              try{ const d=JSON.parse(e.data); this.handle(d);}catch(_){/* ignore */}
+            };
+          }catch(_){ /* ignore SSE errors */ }
+        },
+        handle(d){
+          if(d.type==='flag_added'){ this.stats.flagged_claims = Number(this.stats.flagged_claims||0)+1; }
+          if(d.type==='flag_removed'){ this.stats.flagged_claims = Math.max(0, Number(this.stats.flagged_claims||0)-1); }
+          if(d.type==='stats_update' && d.stats){ this.stats = { ...this.stats, ...d.stats }; }
+        },
+        format(v){ try{ return Number(v||0).toLocaleString(); }catch(_){ return v; } }
+      }
+    }
+    </script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>
