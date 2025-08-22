@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.contrib.auth.models import User
-from .models import UserProfile, Note, Flag
+from .models import UserProfile, Note, Flag, Claim
 
 
 class UserRegistrationForm(UserCreationForm):
@@ -72,6 +72,34 @@ class UserProfileForm(forms.ModelForm):
             'department': forms.TextInput(attrs={'class': 'form-input'}),
             'phone': forms.TextInput(attrs={'class': 'form-input'}),
         }
+
+
+class AdminUserProfileForm(forms.ModelForm):
+    """Admin form for editing user profiles including role"""
+    
+    class Meta:
+        model = UserProfile
+        fields = ('role', 'department', 'phone')
+        widgets = {
+            'role': forms.Select(attrs={'class': 'form-input'}),
+            'department': forms.TextInput(attrs={'class': 'form-input'}),
+            'phone': forms.TextInput(attrs={'class': 'form-input'}),
+        }
+
+
+class ClaimAssignmentForm(forms.ModelForm):
+    """Form for assigning claims to users"""
+    
+    assigned_to = forms.ModelChoiceField(
+        queryset=User.objects.filter(is_active=True),
+        required=False,
+        empty_label="Unassigned",
+        widget=forms.Select(attrs={'class': 'form-input'})
+    )
+    
+    class Meta:
+        model = Claim
+        fields = ('assigned_to',)
 
 
 class NoteForm(forms.ModelForm):

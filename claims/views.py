@@ -28,6 +28,10 @@ def notify_clients(event_type: str, payload: dict) -> None:
 
 def admin_events(request):
     """Server-Sent Events endpoint for admin dashboard real-time updates."""
+    # Only allow admin users
+    if not request.user.is_authenticated or not getattr(request.user.userprofile, 'is_admin', False):
+        return HttpResponse('Access denied', status=403)
+    
     def event_stream():
         client_q = queue.Queue()
         _event_clients.add(client_q)
@@ -49,7 +53,10 @@ def admin_events(request):
 
 
 def index(request):
-    """Main claims list view"""
+    """Main claims list view with role-based access control"""
+    if not request.user.is_authenticated:
+        return redirect('claims:user_login')
+    
     page = request.GET.get('page', 1)
     per_page = 10
     
@@ -58,7 +65,14 @@ def index(request):
     status_filter = request.GET.get('status', '')
     insurer_filter = request.GET.get('insurer', '')
     
-    claims = Claim.objects.all()
+    # Role-based claim access
+    user_profile = getattr(request.user, 'userprofile', None)
+    if user_profile and user_profile.can_see_all_claims:
+        # Admin users can see all claims
+        claims = Claim.objects.all()
+    else:
+        # Regular users only see their assigned claims
+        claims = Claim.objects.filter(assigned_to=request.user)
     
     if search:
         claims = claims.filter(
@@ -75,14 +89,21 @@ def index(request):
     
     claims = claims.order_by('-created_at')
     
-    # Get unique statuses and insurers for filter dropdowns
-    statuses = Claim.objects.values_list('status', flat=True).distinct()
-    insurers = Claim.objects.values_list('insurer_name', flat=True).distinct()
-    # KPI stats
-    total_claims = Claim.objects.count()
-    flagged_claims = Flag.objects.count()
-    total_billed = Claim.objects.aggregate(total=Sum('billed_amount'))['total'] or 0
-    total_paid = Claim.objects.aggregate(total=Sum('paid_amount'))['total'] or 0
+    # Get unique statuses and insurers for filter dropdowns (only for user's accessible claims)
+    statuses = claims.values_list('status', flat=True).distinct()
+    insurers = claims.values_list('insurer_name', flat=True).distinct()
+    
+    # KPI stats based on user's access level
+    total_claims = claims.count()
+    if user_profile and user_profile.can_see_all_claims:
+        flagged_claims = Flag.objects.count()
+        total_billed = Claim.objects.aggregate(total=Sum('billed_amount'))['total'] or 0
+        total_paid = Claim.objects.aggregate(total=Sum('paid_amount'))['total'] or 0
+    else:
+        flagged_claims = Flag.objects.filter(claim__assigned_to=request.user).count()
+        total_billed = claims.aggregate(total=Sum('billed_amount'))['total'] or 0
+        total_paid = claims.aggregate(total=Sum('paid_amount'))['total'] or 0
+    
     average_underpayment = total_billed - total_paid
     
     context = {
@@ -93,6 +114,7 @@ def index(request):
         'statuses': statuses,
         'insurers': insurers,
         'user': request.user,
+        'user_profile': user_profile,
         'stats': {
             'total_claims': total_claims,
             'flagged_claims': flagged_claims,
@@ -114,8 +136,10 @@ def user_register(request):
         form = UserRegistrationForm(request.POST)
         if form.is_valid():
             user = form.save()
+            # Create user profile with default reviewer role
+            UserProfile.objects.create(user=user, role='reviewer')
             login(request, user)
-            messages.success(request, 'Account created successfully!')
+            messages.success(request, 'Account created successfully! You have been assigned the Claims Reviewer role.')
             return redirect('claims:index')
     else:
         form = UserRegistrationForm()
@@ -136,7 +160,15 @@ def user_login(request):
                 remember_me = form.cleaned_data.get('remember_me')
                 if not remember_me:
                     request.session.set_expiry(0)
-                messages.success(request, f'Welcome back, {user.first_name}!')
+                
+                # Get user role for welcome message
+                try:
+                    role = user.userprofile.role
+                    role_display = dict(UserProfile.ROLE_CHOICES)[role]
+                except:
+                    role_display = "Claims Reviewer"
+                
+                messages.success(request, f'Welcome back, {user.first_name}! You are logged in as a {role_display}.')
                 return redirect('claims:index')
     else:
         form = UserLoginForm()
@@ -157,7 +189,7 @@ def user_profile(request):
     try:
         profile = request.user.userprofile
     except UserProfile.DoesNotExist:
-        profile = UserProfile.objects.create(user=request.user)
+        profile = UserProfile.objects.create(user=request.user, role='reviewer')
     
     if request.method == 'POST':
         form = UserProfileForm(request.POST, instance=profile)
@@ -178,8 +210,14 @@ def user_profile(request):
 
 @login_required
 def claim_detail(request, claim_id):
-    """Claim detail view with HTMX integration"""
+    """Claim detail view with role-based access control"""
     claim = get_object_or_404(Claim, claim_id=claim_id)
+    
+    # Check if user has access to this claim
+    user_profile = getattr(request.user, 'userprofile', None)
+    if not (user_profile and user_profile.can_see_all_claims) and claim.assigned_to != request.user:
+        messages.error(request, 'You do not have permission to view this claim.')
+        return redirect('claims:index')
     
     # Prepare CPT codes list for display badges
     cpt_codes_list = []
@@ -210,6 +248,7 @@ def claim_detail(request, claim_id):
         'all_notes': all_notes,
         'all_flags': all_flags,
         'user': request.user,
+        'user_profile': user_profile,
         'note_form': NoteForm(),
         'flag_form': FlagForm(),
         'cpt_codes_list': cpt_codes_list,
@@ -225,6 +264,12 @@ def claim_detail(request, claim_id):
 def claim_details_partial(request, claim_id):
     """HTMX partial for claim details"""
     claim = get_object_or_404(Claim, claim_id=claim_id)
+    
+    # Check access permissions
+    user_profile = getattr(request.user, 'userprofile', None)
+    if not (user_profile and user_profile.can_see_all_claims) and claim.assigned_to != request.user:
+        return HttpResponse('<div class="text-red-600">Access denied</div>', status=403)
+    
     cpt_codes_list = []
     if hasattr(claim, 'details') and claim.details.exists():
         detail_obj = claim.details.first()
@@ -251,6 +296,7 @@ def claim_details_partial(request, claim_id):
         'all_notes': all_notes,
         'all_flags': all_flags,
         'user': request.user,
+        'user_profile': user_profile,
     }
     return render(request, 'partials/claim_details.html', context)
 
@@ -261,6 +307,11 @@ def claim_details_partial(request, claim_id):
 def flag_claim(request, claim_id):
     """Flag a claim for review"""
     claim = get_object_or_404(Claim, claim_id=claim_id)
+    
+    # Check if user has access to this claim
+    user_profile = getattr(request.user, 'userprofile', None)
+    if not (user_profile and user_profile.can_see_all_claims) and claim.assigned_to != request.user:
+        return JsonResponse({'success': False, 'message': 'You do not have permission to flag this claim.'}, status=403)
     
     try:
         # Accept JSON or form-encoded (HTMX default)
@@ -283,16 +334,17 @@ def flag_claim(request, claim_id):
             reason=reason
         )
 
-        # Notify SSE listeners
-        flag_payload = {
-            'id': flag.id,
-            'claim_id': claim.claim_id,
-            'patient_name': claim.patient_name,
-            'reason': flag.reason,
-            'user': getattr(flag.user, 'username', flag.user_id),
-            'created_at': flag.created_at.strftime('%m/%d/%Y %I:%M %p')
-        }
-        notify_clients('flag_added', {'flag': flag_payload})
+        # Notify SSE listeners (only for admin users)
+        if user_profile and user_profile.can_see_all_claims:
+            flag_payload = {
+                'id': flag.id,
+                'claim_id': claim.claim_id,
+                'patient_name': claim.patient_name,
+                'reason': flag.reason,
+                'user': getattr(flag.user, 'username', flag.user_id),
+                'created_at': flag.created_at.strftime('%m/%d/%Y %I:%M %p')
+            }
+            notify_clients('flag_added', {'flag': flag_payload})
         
         # If HTMX, return fragment HTML for immediate DOM swap
         if request.META.get('HTTP_HX_REQUEST'):
@@ -314,11 +366,18 @@ def flag_claim(request, claim_id):
 def remove_flag(request, flag_id):
     """Remove a flag from a claim"""
     flag = get_object_or_404(Flag, id=flag_id)
+    
+    # Check if user has access to this claim
+    user_profile = getattr(request.user, 'userprofile', None)
+    if not (user_profile and user_profile.can_see_all_claims) and flag.claim.assigned_to != request.user:
+        return JsonResponse({'success': False, 'message': 'You do not have permission to remove this flag.'}, status=403)
+    
     flag_id_copy = flag.id
     flag.delete()
 
-    # Notify SSE listeners
-    notify_clients('flag_removed', {'flag_id': flag_id_copy})
+    # Notify SSE listeners (only for admin users)
+    if user_profile and user_profile.can_see_all_claims:
+        notify_clients('flag_removed', {'flag_id': flag_id_copy})
     
     return JsonResponse({'success': True, 'message': 'Flag removed successfully'})
 
@@ -329,6 +388,11 @@ def remove_flag(request, flag_id):
 def add_note(request, claim_id):
     """Add a note to a claim"""
     claim = get_object_or_404(Claim, claim_id=claim_id)
+    
+    # Check if user has access to this claim
+    user_profile = getattr(request.user, 'userprofile', None)
+    if not (user_profile and user_profile.can_see_all_claims) and claim.assigned_to != request.user:
+        return JsonResponse({'success': False, 'message': 'You do not have permission to add notes to this claim.'}, status=403)
     
     try:
         if request.META.get('CONTENT_TYPE', '').startswith('application/json'):
@@ -371,8 +435,13 @@ def remove_note(request, note_id):
     """Remove a note from a claim"""
     note = get_object_or_404(Note, id=note_id)
     
+    # Check if user has access to this claim
+    user_profile = getattr(request.user, 'userprofile', None)
+    if not (user_profile and user_profile.can_see_all_claims) and note.claim.assigned_to != request.user:
+        return JsonResponse({'success': False, 'message': 'You do not have permission to remove this note.'}, status=403)
+    
     # Only allow users to remove their own notes or admin users
-    if note.user == request.user or request.user.is_staff:
+    if note.user == request.user or (user_profile and user_profile.is_admin):
         note.delete()
         return JsonResponse({
             'success': True, 
@@ -385,9 +454,11 @@ def remove_note(request, note_id):
         }, status=403)
 
 
+@login_required
 def admin_dashboard(request):
-    """Admin dashboard with statistics"""
-    if not request.user.is_staff:
+    """Admin dashboard with statistics - only accessible to admin users"""
+    user_profile = getattr(request.user, 'userprofile', None)
+    if not (user_profile and user_profile.can_see_all_claims):
         messages.error(request, 'Access denied. Admin privileges required.')
         return redirect('claims:index')
     
@@ -400,12 +471,18 @@ def admin_dashboard(request):
     # Get recent flags for real-time updates
     recent_flags = Flag.objects.select_related('claim').order_by('-created_at')[:10]
     
+    # Get claims by assignment status
+    unassigned_claims = Claim.objects.filter(assigned_to__isnull=True).count()
+    assigned_claims = Claim.objects.filter(assigned_to__isnull=False).count()
+    
     stats = {
         'total_claims': total_claims,
         'flagged_claims': flagged_claims,
         'total_billed': total_billed,
         'total_paid': total_paid,
         'average_underpayment': average_underpayment,
+        'unassigned_claims': unassigned_claims,
+        'assigned_claims': assigned_claims,
         'recent_flags': recent_flags
     }
     
@@ -413,7 +490,11 @@ def admin_dashboard(request):
 
 
 def api_admin_stats(request):
-    """API endpoint for admin dashboard stats with real-time updates"""
+    """API endpoint for admin dashboard stats with real-time updates - admin only"""
+    user_profile = getattr(request.user, 'userprofile', None)
+    if not (user_profile and user_profile.can_see_all_claims):
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
     total_claims = Claim.objects.count()
     flagged_claims = Flag.objects.count()
     total_billed = Claim.objects.aggregate(total=Sum('billed_amount'))['total'] or 0
@@ -445,8 +526,16 @@ def api_admin_stats(request):
 
 
 def api_claims(request):
-    """API endpoint for claims data"""
-    claims = Claim.objects.all()
+    """API endpoint for claims data - role-based access"""
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    user_profile = getattr(request.user, 'userprofile', None)
+    if user_profile and user_profile.can_see_all_claims:
+        claims = Claim.objects.all()
+    else:
+        claims = Claim.objects.filter(assigned_to=request.user)
+    
     claims_data = [{
         'id': claim.claim_id,
         'patient_name': claim.patient_name,
@@ -462,8 +551,13 @@ def api_claims(request):
 
 @login_required
 def export_claims_json(request):
-    """Export claims data as JSON"""
-    claims = Claim.objects.all()
+    """Export claims data as JSON - role-based access"""
+    user_profile = getattr(request.user, 'userprofile', None)
+    if user_profile and user_profile.can_see_all_claims:
+        claims = Claim.objects.all()
+    else:
+        claims = Claim.objects.filter(assigned_to=request.user)
+    
     claims_data = []
     
     for claim in claims:
@@ -474,7 +568,7 @@ def export_claims_json(request):
             'paid_amount': float(claim.paid_amount),
             'status': claim.status,
             'insurer_name': claim.insurer_name,
-            'discharge_date': claim.discharge_date.strftime('%Y-%m-%d') if claim.discharge_date else None
+            'discharge_date': claim.discharge_date.strftime('%Y-%d-%m') if claim.discharge_date else None
         }
         
         # Add claim details if available
@@ -495,10 +589,15 @@ def export_claims_json(request):
 
 @login_required
 def export_claims_csv(request):
-    """Export claims data as CSV"""
+    """Export claims data as CSV - role-based access"""
     import csv
     
-    claims = Claim.objects.all()
+    user_profile = getattr(request.user, 'userprofile', None)
+    if user_profile and user_profile.can_see_all_claims:
+        claims = Claim.objects.all()
+    else:
+        claims = Claim.objects.filter(assigned_to=request.user)
+    
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename=claim_list_data.csv'
     
@@ -520,3 +619,31 @@ def export_claims_csv(request):
         ])
     
     return response
+
+
+@login_required
+def assign_claim(request, claim_id):
+    """Assign a claim to a user - admin/supervisor only"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    
+    user_profile = getattr(request.user, 'userprofile', None)
+    if not (user_profile and user_profile.can_assign_claims):
+        return JsonResponse({'error': 'Access denied. You cannot assign claims.'}, status=403)
+    
+    claim = get_object_or_404(Claim, claim_id=claim_id)
+    user_id = request.POST.get('user_id')
+    
+    if user_id:
+        try:
+            user = User.objects.get(id=user_id)
+            claim.assigned_to = user
+            claim.save()
+            return JsonResponse({'success': True, 'message': f'Claim assigned to {user.username}'})
+        except User.DoesNotExist:
+            return JsonResponse({'error': 'User not found'}, status=404)
+    else:
+        # Unassign claim
+        claim.assigned_to = None
+        claim.save()
+        return JsonResponse({'success': True, 'message': 'Claim unassigned'})

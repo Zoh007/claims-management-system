@@ -20,6 +20,7 @@ class Claim(models.Model):
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, verbose_name="Status")
     insurer_name = models.CharField(max_length=100, verbose_name="Insurer Name")
     discharge_date = models.DateField(verbose_name="Discharge Date")
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_claims', verbose_name="Assigned To")
     created_at = models.DateTimeField(default=timezone.now, verbose_name="Created At")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated At")
     
@@ -89,9 +90,16 @@ class Note(models.Model):
 
 
 class UserProfile(models.Model):
-    """Additional user information"""
+    """Additional user information with role-based permissions"""
+    
+    ROLE_CHOICES = [
+        ('reviewer', 'Claims Reviewer'),
+        ('admin', 'Administrator'),
+        ('supervisor', 'Supervisor'),
+    ]
     
     user = models.OneToOneField(User, on_delete=models.CASCADE, verbose_name="User")
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='reviewer', verbose_name="Role")
     department = models.CharField(max_length=100, blank=True, null=True, verbose_name="Department")
     phone = models.CharField(max_length=20, blank=True, null=True, verbose_name="Phone")
     created_at = models.DateTimeField(default=timezone.now, verbose_name="Created At")
@@ -102,3 +110,18 @@ class UserProfile(models.Model):
     
     def __str__(self):
         return f'Profile for {self.user.username}'
+    
+    @property
+    def is_admin(self):
+        """Check if user has admin privileges"""
+        return self.role in ['admin', 'supervisor'] or self.user.is_staff
+    
+    @property
+    def can_see_all_claims(self):
+        """Check if user can see all claims"""
+        return self.is_admin
+    
+    @property
+    def can_assign_claims(self):
+        """Check if user can assign claims to others"""
+        return self.role in ['admin', 'supervisor']
